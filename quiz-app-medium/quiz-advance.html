@@ -1,0 +1,259 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Quiz App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .quiz-container {
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .card {
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .question {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        .answer {
+            margin-bottom: 10px;
+        }
+        .timer {
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        #leaderboard {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="quiz-container">
+    <h2 class="text-center">Advanced Quiz App</h2>
+    <form id="quiz-form">
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" placeholder="Enter your name" required>
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" placeholder="Enter your email" required>
+        </div>
+
+        <!-- Quiz Questions Section -->
+        <div id="quiz-questions"></div>
+
+        <!-- Timer -->
+        <div id="timer" class="timer mb-3">Time Left: <span id="time-left">00:00</span></div>
+
+        <button type="button" class="btn btn-primary mt-3" id="start-btn" onclick="startQuiz()">Start Quiz</button>
+        <button type="submit" class="btn btn-primary mt-3" id="submit-btn" style="display: none;">Submit</button>
+        <button type="button" class="btn btn-secondary mt-3" id="restart-btn" style="display: none;" onclick="restartQuiz()">Restart</button>
+    </form>
+
+    <!-- Results Section -->
+    <div id="results" class="mt-4" style="display: none;">
+        <h3>Results</h3>
+        <p><strong>Name:</strong> <span id="result-name"></span></p>
+        <p><strong>Email:</strong> <span id="result-email"></span></p>
+        <p><strong>Score:</strong> <span id="result-score"></span></p>
+        <div id="answer-details"></div>
+    </div>
+
+    <!-- Leaderboard Section -->
+    <button class="btn btn-secondary mt-3" id="leaderboard-btn">Toggle Leaderboard</button>
+    <div id="leaderboard" class="mt-3">
+        <h4>Leaderboard</h4>
+        <div id="leaderboard-list" class="list-group"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Variables and Quiz Data
+let leaderboard = [];
+let timer;
+let timeLeft = 30; // 5 minutes in seconds
+
+// Timer Functionality
+function startTimer() {
+    timer = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('time-left').innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        timeLeft--;
+
+        if (timeLeft < 0) {
+            clearInterval(timer);
+            document.getElementById('submit-btn').style.display = 'inline-block';  // Show the submit button when time ends
+            document.getElementById('restart-btn').style.display = 'inline-block';  // Show the restart button when time ends
+        }
+    }, 1000);
+}
+
+// Quiz Data
+const quizData = [
+    { question: "What is the capital of France?", type: "mcq", options: ["Paris", "London", "Berlin", "Madrid"], correct: "Paris" },
+    { question: "What is the chemical symbol for water?", type: "mcq", options: ["H2O", "O2", "CO2", "H2"], correct: "H2O" },
+    { question: "What is 2+2?", type: "mcq", options: ["3", "4", "5", "6"], correct: "4" },
+    { question: "Explain why the sky is blue.", type: "cq", correct: "Rayleigh scattering" },
+];
+
+// Load quiz questions
+function loadQuiz() {
+    const quizQuestionsElement = document.getElementById("quiz-questions");
+    quizQuestionsElement.innerHTML = "";
+
+    quizData.forEach((item, index) => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+        card.innerHTML = `
+            <div class="card-body">
+                <h5 class="card-title">${item.question}</h5>
+                ${item.type === "mcq" ? generateMCQ(item, index) : ''}
+                ${item.type === "cq" ? generateCQ(item, index) : ''}
+            </div>
+        `;
+        quizQuestionsElement.appendChild(card);
+    });
+}
+
+// Generate Multiple Choice Question
+function generateMCQ(item, index) {
+    return item.options.map(option => `
+        <div class="form-check">
+            <input type="radio" class="form-check-input" name="question-${index}" value="${option}">
+            <label class="form-check-label">${option}</label>
+        </div>
+    `).join('');
+}
+
+// Generate Constructive Question
+function generateCQ(item, index) {
+    return `<textarea class="form-control" name="question-${index}" rows="3"></textarea>`;
+}
+
+// Calculate Score Function
+function calculateScore(formData) {
+    let score = 0;
+    const userAnswers = [];
+
+    quizData.forEach((item, index) => {
+        const userAnswer = formData.get(`question-${index}`) || 'No Answer';
+        const isCorrect = userAnswer === item.correct;
+        userAnswers.push({ question: item.question, userAnswer, correctAnswer: item.correct, isCorrect });
+
+        if (item.type === "mcq" && isCorrect) {
+            score++;
+        }
+    });
+
+    return { score, userAnswers };
+}
+
+// Form Submit and Results Display
+document.getElementById("quiz-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const formData = new FormData(document.getElementById("quiz-form"));
+    const { score, userAnswers } = calculateScore(formData);
+
+    leaderboard.push({ name, email, score, userAnswers });
+
+    // Display Results
+    document.getElementById("result-name").innerText = name;
+    document.getElementById("result-email").innerText = email;
+    document.getElementById("result-score").innerText = score;
+
+    let answerDetails = "<h4>Your Answer Details:</h4><ul>";
+    userAnswers.forEach(answer => {
+        const status = answer.isCorrect ? "Correct" : "Incorrect";
+        answerDetails += `
+            <li>
+                <strong>Q:</strong> ${answer.question}<br>
+                <strong>Your Answer:</strong> ${answer.userAnswer} <br>
+                <strong>Correct Answer:</strong> ${answer.correctAnswer} <br>
+                <strong>Status:</strong> ${status}
+            </li>
+        `;
+    });
+    answerDetails += "</ul>";
+
+    document.getElementById("answer-details").innerHTML = answerDetails;
+    document.getElementById("results").style.display = "block";
+
+    // Reset the form and leaderboard
+    document.getElementById("quiz-form").reset();
+    updateLeaderboard();
+});
+
+// Update Leaderboard
+function updateLeaderboard() {
+    const leaderboardList = document.getElementById("leaderboard-list");
+    leaderboardList.innerHTML = "";
+
+    leaderboard.sort((a, b) => b.score - a.score); // Sort by score descending
+
+    leaderboard.forEach((user, index) => {
+        const userDiv = document.createElement("div");
+        userDiv.classList.add("list-group-item");
+        userDiv.innerHTML = `<strong>${user.name}</strong> - Score: ${user.score}`;
+        userDiv.addEventListener("click", () => showUserDetails(index));
+        leaderboardList.appendChild(userDiv);
+    });
+}
+
+// Show User Details with Answer Details and Correct/Incorrect Feedback
+function showUserDetails(index) {
+    const user = leaderboard[index];
+    let message = `Name: ${user.name}\nEmail: ${user.email}\nScore: ${user.score}\n\nAnswer Details:\n`;
+
+    user.userAnswers.forEach(answer => {
+        const status = answer.isCorrect ? "Correct" : "Incorrect";
+        message += `\nQ: ${answer.question}\nYour Answer: ${answer.userAnswer}\nCorrect Answer: ${answer.correctAnswer}\nStatus: ${status}\n`;
+    });
+
+    alert(message);
+}
+
+// Toggle Leaderboard Visibility
+document.getElementById("leaderboard-btn").addEventListener("click", () => {
+    const leaderboardSection = document.getElementById("leaderboard");
+    leaderboardSection.style.display = leaderboardSection.style.display === "none" ? "block" : "none";
+});
+
+// Restart Quiz Functionality
+function restartQuiz() {
+    timeLeft = 30; // Reset time
+    document.getElementById('submit-btn').style.display = 'none';  // Hide submit button
+    document.getElementById('restart-btn').style.display = 'none';  // Hide restart button
+    document.getElementById('results').style.display = 'none';  // Hide results
+    loadQuiz(); // Reload the quiz with the same or updated questions
+    startQuiz(); // Start the quiz again
+}
+
+// Start Quiz Functionality
+function startQuiz() {
+    loadQuiz(); // Load quiz questions
+    startTimer(); // Start the timer
+    document.getElementById("start-btn").style.display = 'none';  // Hide start button after quiz starts
+    document.getElementById("submit-btn").style.display = 'inline-block';  // Show submit button
+}
+
+// Initial Load
+loadQuiz();
+</script>
+</body>
+</html>
