@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Quiz App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .quiz-container {
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .question {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        .answer {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .answer:hover {
+            background-color: #e9ecef;
+        }
+        .btn-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #28a745;
+            width: 0%;
+            transition: width 0.5s;
+        }
+        .timer {
+            font-size: 1.2rem;
+            color: #dc3545;
+            text-align: right;
+        }
+        .leaderboard {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <div id="quiz">
+        <div class="progress mb-3">
+            <div id="progress-bar" class="progress-bar" role="progressbar"></div>
+        </div>
+        <div class="timer" id="timer">Time Left: 15s</div>
+        <div id="question" class="question">Question will appear here</div>
+        <div id="answers" class="answers"></div>
+        <div class="btn-container">
+            <button id="next-btn" class="btn btn-primary" disabled>Next</button>
+        </div>
+    </div>
+    <div id="leaderboard" class="leaderboard">
+        <h3>Leaderboard</h3>
+        <ul id="leaderboard-list" class="list-group"></ul>
+    </div>
+</div>
+
+<script>
+const quizData = [
+    {
+        question: "What is the capital of France?",
+        answers: ["Paris", "London", "Berlin", "Madrid"],
+        correct: "Paris",
+        explanation: "Paris is the capital and most populous city of France."
+    },
+    {
+        question: "Which programming language is known as the language of the web?",
+        answers: ["Python", "C++", "JavaScript", "Java"],
+        correct: "JavaScript",
+        explanation: "JavaScript is widely used to create interactive effects within web browsers."
+    },
+    {
+        question: "Who painted the Mona Lisa?",
+        answers: ["Vincent van Gogh", "Pablo Picasso", "Leonardo da Vinci", "Claude Monet"],
+        correct: "Leonardo da Vinci",
+        explanation: "The Mona Lisa is a half-length portrait painting by the Italian artist Leonardo da Vinci."
+    },
+    {
+        question: "What is the boiling point of water?",
+        answers: ["90°C", "100°C", "110°C", "120°C"],
+        correct: "100°C",
+        explanation: "Water boils at 100°C at standard atmospheric pressure."
+    },
+];
+
+let currentQuestionIndex = 0;
+let score = 0;
+let timerInterval;
+let timeLeft = 15;
+let quizMode = "Timed";
+const leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+
+const questionElement = document.getElementById("question");
+const answersElement = document.getElementById("answers");
+const nextButton = document.getElementById("next-btn");
+const progressBar = document.getElementById("progress-bar");
+const timerElement = document.getElementById("timer");
+const leaderboardList = document.getElementById("leaderboard-list");
+
+function loadLeaderboard() {
+    leaderboardList.innerHTML = "";
+    leaderboard.sort((a, b) => b.score - a.score).slice(0, 5).forEach(entry => {
+        const listItem = document.createElement("li");
+        listItem.className = "list-group-item";
+        listItem.innerText = `${entry.name}: ${entry.score}`;
+        leaderboardList.appendChild(listItem);
+    });
+}
+
+function loadQuestion() {
+    const currentQuestion = quizData[currentQuestionIndex];
+    questionElement.innerText = currentQuestion.question;
+
+    answersElement.innerHTML = "";
+    currentQuestion.answers.forEach(answer => {
+        const button = document.createElement("button");
+        button.innerText = answer;
+        button.classList.add("answer");
+        button.onclick = () => selectAnswer(button);
+        answersElement.appendChild(button);
+    });
+    nextButton.disabled = true;
+    resetTimer();
+    if (quizMode === "Timed") startTimer();
+    updateProgressBar();
+}
+
+function selectAnswer(button) {
+    const selectedAnswer = button.innerText;
+    const correctAnswer = quizData[currentQuestionIndex].correct;
+
+    if (selectedAnswer === correctAnswer) {
+        button.style.backgroundColor = "#28a745"; // Green for correct
+        score++;
+    } else {
+        button.style.backgroundColor = "#dc3545"; // Red for incorrect
+        Array.from(answersElement.children).forEach(btn => {
+            if (btn.innerText === correctAnswer) {
+                btn.style.backgroundColor = "#28a745";
+            }
+        });
+    }
+
+    const buttons = answersElement.querySelectorAll("button");
+    buttons.forEach(btn => btn.disabled = true);
+
+    nextButton.disabled = false;
+    displayExplanation();
+    stopTimer();
+}
+
+function displayExplanation() {
+    const explanation = quizData[currentQuestionIndex].explanation;
+    const explanationElement = document.createElement("div");
+    explanationElement.classList.add("text-muted", "mt-2");
+    explanationElement.innerText = explanation;
+    answersElement.appendChild(explanationElement);
+}
+
+nextButton.addEventListener("click", () => {
+    currentQuestionIndex++;
+    if (currentQuestionIndex < quizData.length) {
+        loadQuestion();
+    } else {
+        showScore();
+    }
+});
+
+function showScore() {
+    questionElement.innerText = `You scored ${score} out of ${quizData.length}!`;
+    answersElement.innerHTML = "";
+
+    const nameInput = document.createElement("input");
+    nameInput.placeholder = "Enter your name";
+    nameInput.className = "form-control mt-3";
+
+    const saveButton = document.createElement("button");
+    saveButton.className = "btn btn-success mt-2";
+    saveButton.innerText = "Save Score";
+    saveButton.onclick = () => {
+        leaderboard.push({ name: nameInput.value, score });
+        localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+        loadLeaderboard();
+        restartQuiz();
+    };
+
+    answersElement.appendChild(nameInput);
+    answersElement.appendChild(saveButton);
+
+    progressBar.style.width = "100%";
+    stopTimer();
+    timerElement.style.display = "none";
+}
+
+function restartQuiz() {
+    currentQuestionIndex = 0;
+    score = 0;
+    nextButton.innerText = "Next";
+    timerElement.style.display = "block";
+    loadQuestion();
+}
+
+function updateProgressBar() {
+    const progress = ((currentQuestionIndex / quizData.length) * 100).toFixed(2);
+    progressBar.style.width = `${progress}%`;
+}
+
+function startTimer() {
+    timeLeft = 15;
+    timerElement.innerText = `Time Left: ${timeLeft}s`;
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        timerElement.innerText = `Time Left: ${timeLeft}s`;
+
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            autoSelectCorrectAnswer();
+        }
+    }, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+}
+
+function resetTimer() {
+    stopTimer();
+    timeLeft = 15;
+    timerElement.innerText = `Time Left: ${timeLeft}s`;
+}
+
+function autoSelectCorrectAnswer() {
+    const correctAnswer = quizData[currentQuestionIndex].correct;
+    Array.from(answersElement.children).forEach(button => {
+        if (button.innerText === correctAnswer) {
+            button.style.backgroundColor = "#28a745";
+        } else {
+            button.style.backgroundColor = "#dc3545";
+        }
+        button.disabled = true;
+    });
+    nextButton.disabled = false;
+    displayExplanation();
+}
+
+loadQuestion();
+loadLeaderboard();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
